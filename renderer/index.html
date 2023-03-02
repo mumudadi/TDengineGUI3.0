@@ -1,0 +1,664 @@
+<html>
+  <head>
+    <meta charset="UTF-8">
+    <title>TDengineGUI</title>
+    <link rel="stylesheet" href="../node_modules/element-ui/lib/theme-chalk/index.css">
+    <link rel="stylesheet" href="./index.css">
+  </head>
+  <body>
+    <script src="../node_modules/vue/dist/vue.js"></script>
+    <script src="../node_modules/element-ui/lib/index.js"></script>
+    <div id="app">
+      <!-- 连接列表 -->
+      <el-drawer
+        :before-close="beforeClosedrawer"
+        title="数据库"
+        size="380"
+        :visible.sync="drawer"
+        direction="ltr">
+        <div v-loading="loadingLinks">
+          <el-row>
+            <el-button class="linkBtn" @click="addLinkDialog = true" size="small" type="primary" plain>新建连接</el-button>
+          </el-row>
+          <el-menu class="menu"  @open="freshDB" :unique-opened="true">
+            <el-submenu :index="String(index)" :key="index" v-for="(link, index) in links">
+              <template slot="title">
+                <span>{{link.name}}</span>
+                <el-tag type="success" size="mini" v-if="link.version">{{link.version}}</el-tag>
+                <div class="iconWrapper3">
+                  <img @click.stop="addDB(index)" class="icon1" src="./img/add.png">
+                  <img @click.stop="freshDB(index)" class="icon1" src="./img/fresh.png">
+                  <img @click.stop="deleteLink(index, link.name)" class="icon1" src="./img/delete.png">
+                </div>
+              </template>
+              <el-menu-item :index="db.name" class="menuitem" @click="alartDB(link, db.name)" :key="db.name" v-for="(db, index_) in link.dbs" >
+                <img class="icon11" src="./img/database.png">
+                {{db.name}}
+                <img class="icon111" @click.stop="deleteDB(link, db.name, index)"  src="./img/delete.png">
+              </el-menu-item>
+            </el-submenu>
+
+          </el-menu>
+        </div>
+
+      </el-drawer>
+      <!-- 新建连接的弹窗 -->
+
+      <el-dialog :close-on-click-modal="false" :before-close="cancelAddLink" :visible.sync="addLinkDialog" title="新建连接">
+        <el-form :model="linkForm"  :ref="linkForm" class="linkformstyle" label-width="80px">
+          <el-form-item label="名称" prop="name">
+            <el-input v-model="linkForm.name"></el-input>
+          </el-form-item>
+          <el-form-item label="Host" prop="host">
+            <el-input v-model="linkForm.host"></el-input>
+          </el-form-item>
+          <el-form-item label="Port" prop="port">
+            <el-input v-model="linkForm.port"></el-input>
+          </el-form-item>
+          <el-form-item label="User" prop="user">
+            <el-input v-model="linkForm.user"></el-input>
+          </el-form-item>
+          <el-form-item label="Password" prop="password">
+            <el-input type="password" v-model="linkForm.password"></el-input>
+          </el-form-item>
+        </el-form>
+        <div slot="footer" class="dialog-footer">
+          <el-button @click="cancelAddLink" size="medium">取 消</el-button>
+          <el-button type="primary" @click="confirmAddLink" size="medium">确 定</el-button>
+        </div>
+      </el-dialog>
+      <!-- 添加数据库的弹窗 -->
+      <el-dialog :visible.sync="addDBDialog" title="添加数据库">
+        <el-form class="linkformstyle" label-width="190px" size="small">
+          <el-form-item label="数据库名称" :rules="[
+          { required: true, message: '数据库名称不能为空'}
+        ]">
+            <el-input v-model="addDBname" autocomplete="off"></el-input>
+          </el-form-item>
+
+            <el-tooltip class="item" effect="dark" content="BUFFER: 一个 VNODE 写入内存池大小，单位为 MB，默认为 96，最小为 3，最大为 16384。字" placement="top">
+                <el-form-item label="BUFFER" >
+                    <el-input-number v-model="addDBOptions.BUFFER" :min="3"	:max="16384" controls-position="right"></el-input-number>
+                </el-form-item>
+            </el-tooltip>
+
+            <el-tooltip class="item" effect="dark" content="CACHEMODEL：表示是否在内存中缓存子表的最近数据。默认为 none。" placement="top">
+                <el-form-item label="CACHEMODEL" >
+                    <el-select v-model="addDBOptions.CACHEMODEL" placeholder="缓存子表数据">
+                        <el-option label="none：表示不缓存。" value="'none'"></el-option>
+                        <el-option label="last_row：表示缓存子表最近一行数据。这将显著改善 LAST_ROW 函数的性能表现。" value="'last_row'"></el-option>
+                        <el-option label="last_value：表示缓存子表每一列的最近的非 NULL 值。这将显著改善无特殊影响（WHERE、ORDER BY、GROUP BY、INTERVAL）下的 LAST 函数的性能表现。" value="'last_value'"></el-option>
+                        <el-option label="both：表示同时打开缓存最近行和列功能。" value="'both'"></el-option>
+                    </el-select>
+                </el-form-item>
+            </el-tooltip>
+
+            <el-tooltip class="item" effect="dark" content="COMP：表示数据库文件压缩标志位，缺省值为 2，取值范围为 [0, 2]。" placement="top">
+              <el-form-item label="COMP" >
+                <el-select v-model="addDBOptions.COMP" placeholder="文件压缩度">
+                  <el-option label="0：表示不压缩。" value="0"></el-option>
+                  <el-option label="1：表示一阶段压缩。" value="1"></el-option>
+                  <el-option label="2：表示两阶段压缩。" value="2"></el-option>
+                </el-select>
+              </el-form-item>
+            </el-tooltip>
+
+            <el-tooltip class="item" effect="dark" content="DURATION：数据文件存储数据的时间跨度。可以使用加单位的表示形式，如 DURATION 100h、DURATION 10d 等，支持 m（分钟）、h（小时）和 d（天）三个单位。不加时间单位时默认单位为天，如 DURATION 50 表示 50 天。" placement="top">
+                <el-form-item label="DURATION" >
+                    <el-input v-model="addDBOptions.DURATION"></el-input>
+                </el-form-item>
+            </el-tooltip>
+
+            <el-tooltip class="item" effect="dark" content="WAL_FSYNC_PERIOD：当 WAL 参数设置为 2 时，落盘的周期。默认为 3000，单位毫秒。最小为 0，表示每次写入立即落盘；最大为 180000，即三分钟。" placement="top">
+                <el-form-item label="WAL_FSYNC_PERIOD" >
+                    <el-input-number v-model="addDBOptions.WAL_FSYNC_PERIOD" :min="0"	:max="180000" controls-position="right"></el-input-number>
+                </el-form-item>
+            </el-tooltip>
+
+            <el-tooltip class="item" effect="dark" content="MAXROWS：文件块中记录的最大条数，默认为 4096 条。" placement="top">
+                <el-form-item label="MAXROWS" >
+                    <el-input-number v-model="addDBOptions.MAXROWS" :min="0" controls-position="right"></el-input-number>
+                </el-form-item>
+            </el-tooltip>
+
+            <el-tooltip class="item" effect="dark" content="MINROWS：文件块中记录的最小条数，默认为 100 条。" placement="top">
+                <el-form-item label="MINROWS" >
+                    <el-input-number v-model="addDBOptions.MINROWS" :min="0" controls-position="right"></el-input-number>
+                </el-form-item>
+            </el-tooltip>
+
+            <el-tooltip class="item" effect="dark" content="KEEP：表示数据文件保存的天数，缺省值为 3650，取值范围 [1, 365000]，且必须大于或等于 DURATION 参数值。数据库会自动删除保存时间超过 KEEP 值的数据。KEEP 可以使用加单位的表示形式，如 KEEP 100h、KEEP 10d 等，支持 m（分钟）、h（小时）和 d（天）三个单位。也可以不写单位，如 KEEP 50，此时默认单位为天。企业版支持多级存储功能, 因此, 可以设置多个保存时间（多个以英文逗号分隔，最多 3 个，满足 keep 0 <= keep 1 <= keep 2，如 KEEP 100h,100d,3650d）; 社区版不支持多级存储功能（即使配置了多个保存时间, 也不会生效, KEEP 会取最大的保存时间）。" placement="top">
+                <el-form-item label="KEEP" >
+                    <el-input-number v-model="addDBOptions.KEEP" :min="3650" :max="365000" controls-position="right"></el-input-number>
+                </el-form-item>
+            </el-tooltip>
+
+            <el-tooltip class="item" effect="dark" content="PAGES：一个 VNODE 中元数据存储引擎的缓存页个数，默认为 256，最小 64。一个 VNODE 元数据存储占用 PAGESIZE * PAGES，默认情况下为 1MB 内存。" placement="top">
+                <el-form-item label="PAGES" >
+                    <el-input-number v-model="addDBOptions.PAGES" :min="64" controls-position="right"></el-input-number>
+                </el-form-item>
+            </el-tooltip>
+
+            <el-tooltip class="item" effect="dark" content="PAGESIZE：一个 VNODE 中元数据存储引擎的页大小，单位为 KB，默认为 4 KB。范围为 1 到 16384，即 1 KB 到 16 MB。" placement="top">
+                <el-form-item label="PAGESIZE" >
+                    <el-input-number v-model="addDBOptions.PAGESIZE" :min="1" :max="16384" controls-position="right"></el-input-number>
+                </el-form-item>
+            </el-tooltip>
+
+            <el-tooltip class="item" effect="dark" content="PRECISION：数据库的时间戳精度。ms 表示毫秒，us 表示微秒，ns 表示纳秒，默认 ms 毫秒。" placement="top">
+                <el-form-item label="PRECISION" >
+                    <el-select v-model="addDBOptions.PRECISION" placeholder="数据库的时间戳精度">
+                        <el-option label="ms 表示毫秒" value="'ms'"></el-option>
+                        <el-option label="us 表示微秒" value="'us'"></el-option>
+                        <el-option label="ns 表示纳秒" value="'ns'"></el-option>
+                    </el-select>
+                </el-form-item>
+            </el-tooltip>
+
+            <el-tooltip class="item" effect="dark" content="REPLICA：表示数据库副本数，取值为 1 或 3，默认为 1。在集群中使用，副本数必须小于或等于 DNODE 的数目。" placement="top">
+                <el-form-item label="REPLICA" >
+                    <el-select v-model="addDBOptions.REPLICA" placeholder="数据库副本数">
+                        <el-option label="1" value="1"></el-option>
+                        <el-option label="3" value="3"></el-option>
+                    </el-select>
+                </el-form-item>
+            </el-tooltip>
+
+            <el-tooltip class="item" effect="dark" content="RETENTIONS：表示数据的聚合周期和保存时长，如 RETENTIONS 15s:7d,1m:21d,15m:50d 表示数据原始采集周期为 15 秒，原始数据保存 7 天；按 1 分钟聚合的数据保存 21 天；按 15 分钟聚合的数据保存 50 天。目前支持且只支持三级存储周期。" placement="top">
+                <el-form-item label="RETENTIONS" >
+                    <el-input v-model="addDBOptions.RETENTIONS"></el-input>
+                </el-form-item>
+            </el-tooltip>
+
+            <el-tooltip class="item" effect="dark" content="WAL_LEVEL：WAL 级别，默认为 1。" placement="top">
+                <el-form-item label="WAL_LEVEL" >
+                    <el-select v-model="addDBOptions.WAL_LEVEL" placeholder="WAL 级别">
+                        <el-option label="1：写 WAL，但不执行 fsync。" value="1"></el-option>
+                        <el-option label="2：写 WAL，而且执行 fsync。" value="2"></el-option>
+                    </el-select>
+                </el-form-item>
+            </el-tooltip>
+
+            <el-tooltip class="item" effect="dark" content="VGROUPS：数据库中初始 vgroup 的数目。" placement="top">
+                <el-form-item label="VGROUPS" >
+                    <el-input-number v-model="addDBOptions.VGROUPS" :min="0" controls-position="right"></el-input-number>
+                </el-form-item>
+            </el-tooltip>
+
+            <el-tooltip class="item" effect="dark" content="SINGLE_STABLE：表示此数据库中是否只可以创建一个超级表，用于超级表列非常多的情况。" placement="top">
+                <el-form-item label="SINGLE_STABLE" >
+                    <el-select v-model="addDBOptions.SINGLE_STABLE">
+                        <el-option label="0：表示可以创建多张超级表。" value="0"></el-option>
+                        <el-option label="1：表示只可以创建一张超级表。" value="1"></el-option>
+                    </el-select>
+                </el-form-item>
+            </el-tooltip>
+
+            <el-tooltip class="item" effect="dark" content="STT_TRIGGER：表示落盘文件触发文件合并的个数。默认为 1，范围 1 到 16。对于少表高频场景，此参数建议使用默认配置，或较小的值；而对于多表低频场景，此参数建议配置较大的值。" placement="top">
+                <el-form-item label="STT_TRIGGER" >
+                    <el-input-number v-model="addDBOptions.STT_TRIGGER" :min="1" :max="16" controls-position="right"></el-input-number>
+                </el-form-item>
+            </el-tooltip>
+
+            <el-tooltip class="item" effect="dark" content="TABLE_PREFIX：内部存储引擎根据表名分配存储该表数据的 VNODE 时要忽略的前缀的长度。" placement="top">
+                <el-form-item label="TABLE_PREFIX" >
+                    <el-input-number v-model="addDBOptions.TABLE_PREFIX" :min="0" controls-position="right"></el-input-number>
+                </el-form-item>
+            </el-tooltip>
+
+            <el-tooltip class="item" effect="dark" content="TABLE_SUFFIX：内部存储引擎根据表名分配存储该表数据的 VNODE 时要忽略的后缀的长度。" placement="top">
+                <el-form-item label="TABLE_SUFFIX" >
+                    <el-input-number v-model="addDBOptions.TABLE_SUFFIX" :min="0" controls-position="right"></el-input-number>
+                </el-form-item>
+            </el-tooltip>
+
+            <el-tooltip class="item" effect="dark" content="TSDB_PAGESIZE：一个 VNODE 中时序数据存储引擎的页大小，单位为 KB，默认为 4 KB。范围为 1 到 16384，即 1 KB到 16 MB。" placement="top">
+                <el-form-item label="TSDB_PAGESIZE" >
+                    <el-input-number v-model="addDBOptions.TSDB_PAGESIZE" :min="1" :max="16384" controls-position="right"></el-input-number>
+                </el-form-item>
+            </el-tooltip>
+
+            <el-tooltip class="item" effect="dark" content="WAL_RETENTION_PERIOD：wal 文件的额外保留策略，用于数据订阅。wal 的保存时长，单位为 s。单副本默认为 0，即落盘后立即删除。-1 表示不删除。多副本默认为 4 天。" placement="top">
+                <el-form-item label="WAL_RETENTION_PERIOD" >
+                    <el-input-number v-model="addDBOptions.WAL_RETENTION_PERIOD"  controls-position="right"></el-input-number>
+                </el-form-item>
+            </el-tooltip>
+
+            <el-tooltip class="item" effect="dark" content="WAL_RETENTION_SIZE：wal 文件的额外保留策略，用于数据订阅。wal 的保存的最大上限，单位为 KB。单副本默认为 0，即落盘后立即删除。多副本默认为-1，表示不删除。" placement="top">
+                <el-form-item label="WAL_RETENTION_SIZE" >
+                    <el-input-number v-model="addDBOptions.WAL_RETENTION_SIZE"  controls-position="right"></el-input-number>
+                </el-form-item>
+            </el-tooltip>
+
+            <el-tooltip class="item" effect="dark" content="WAL_ROLL_PERIOD：wal 文件切换时长，单位为 s。当 wal 文件创建并写入后，经过该时间，会自动创建一个新的 wal 文件。单副本默认为 0，即仅在落盘时创建新文件。多副本默认为 1 天。" placement="top">
+                <el-form-item label="WAL_ROLL_PERIOD" >
+                    <el-input-number v-model="addDBOptions.WAL_ROLL_PERIOD"  controls-position="right"></el-input-number>
+                </el-form-item>
+            </el-tooltip>
+
+            <el-tooltip class="item" effect="dark" content="WAL_SEGMENT_SIZE：wal 单个文件大小，单位为 KB。当前写入文件大小超过上限后会自动创建一个新的 wal 文件。默认为 0，即仅在落盘时创建新文件。" placement="top">
+                <el-form-item label="WAL_SEGMENT_SIZE" >
+                    <el-input-number v-model="addDBOptions.WAL_SEGMENT_SIZE"  controls-position="right"></el-input-number>
+                </el-form-item>
+            </el-tooltip>
+
+        </el-form>
+        <div slot="footer" class="dialog-footer">
+          <el-button @click="addDBDialog = false" size="medium">取 消</el-button>
+          <el-button type="primary" @click="postaddDB" size="medium">确 定</el-button>
+        </div>
+      </el-dialog>
+
+      <el-container class="main">
+        <el-container class="mainContent">
+          <el-tabs v-model="activeTab" type="border-card" class="mainTab"  @tab-click="handleSwichTab">
+            <el-tab-pane label="超级表" class="tablePage" name="1">
+              <el-container class="tableWrapper">
+                <el-aside class="mainAside" width="200px">
+                  <div v-loading="loadingSurperList">
+                    <!-- 超级表列表 -->
+                    <el-table
+                    size="mini"
+                    highlight-current-row
+                    @current-change="handleClickSurperT"
+                    :data="surperTables"
+                    style="width: 100%">
+                    <el-table-column
+                      label="超级表名"
+                      width="180">
+                      <template slot="header" slot-scope="scope">
+                        <span>超级表名</span>
+                        <div class="iconWrapper">
+                          <div class="iconWrapper_" @click.stop="SuperTdialog=true">
+                            <img class="icon1" v-if="searchIcon" @mouseenter="searchIcon = false" src="./img/search_.png">
+                            <img class="icon1" v-else src="./img/search.png" @mouseleave="searchIcon = true">
+                          </div>
+                          <div class="iconWrapper_" @click="freshSurperTList">
+                            <img class="icon1" v-if="freshIcon" @mouseenter="freshIcon = false" src="./img/fresh_.png">
+                            <img class="icon1" v-else src="./img/fresh.png" @mouseleave="freshIcon = true">
+                          </div>
+                        </div>
+                      </template>
+                      <template slot-scope="scope">
+                        <img class="icon1" src="./img/file.png">
+                        <span class="surperTables">{{ scope.row.stable_name }}</span>
+                        <div class="iconWrapper2">
+                          <!-- <img class="icon1" @click="editSurperT(scope.row.name)" src="./img/edit.png"> -->
+                          <img class="icon1" @click.stop="deleteSurperT(scope.row.stable_name)" src="./img/delete.png">
+                        </div>
+                      </template>
+
+                    </el-table-column>
+                    </el-table>
+                    <el-dialog
+                      title="搜索超级表"
+                      :visible.sync="SuperTdialog"
+                      width="30%"
+                      :before-close="closeSuperTdialog">
+                      <el-input
+                        v-model="SuperTdialogText">
+                        <i slot="prefix" class="el-input__icon el-icon-search"></i>
+                      </el-input>
+                      <span slot="footer" class="dialog-footer">
+                        <el-button size="small" @click="closeSuperTdialog">取 消</el-button>
+                        <el-button size="small" type="primary" @click="searchSurperTList">确 定</el-button>
+                      </span>
+                    </el-dialog>
+                  </div>
+                </el-aside>
+                <el-main>
+                  <div v-loading="loadingSurperTable">
+                    <!-- 超级表筛选 -->
+                    <el-dialog :close-on-click-modal="false" :before-close="concelSurperTableFilter" title="筛选条件" :visible.sync="surperTableFilterDialog">
+                      <el-form  :model="surperTableFilter" label-width="80px">
+                          <el-form-item label="数据项" >
+                            <el-checkbox-group
+                              v-model="surperTableFilter.fields">
+                              <el-row class="btnGroup">
+                                <el-button-group>
+                                  <el-button size="mini" @click="STChooseAll">全选</el-button>
+                                  <el-button size="mini" @click="STChooseReverse">反选</el-button>
+                                </el-button-group>
+                              </el-row>
+                              <el-row class="checkboxGroup">
+                                <el-col v-for="label in this.surperTableLabelItems" :key="label" :span="8">
+                                  <el-checkbox class="checkbox" :label="label">{{label}}</el-checkbox>
+                                </el-col>
+                              </el-row>
+                            </el-checkbox-group>
+                          </el-form-item>
+                          <el-form-item label="每页数目">
+                            <el-radio-group v-model="eachPageSurperTable">
+                              <el-row class="checkboxGroup2">
+                                <el-radio :label="10">10</el-radio>
+                                <el-radio :label="15">15</el-radio>
+                                <el-radio :label="20">20</el-radio>
+                              </el-row>
+                            </el-radio-group>
+                          </el-form-item>
+                          <el-switch
+                            class="switchStyle"
+                            v-model="surperTorder"
+                            active-value="ASC"
+                            inactive-value="DESC"
+                            active-text="时间正序"
+                            inactive-text="时间倒序">
+                          </el-switch>
+
+                        </el-form>
+                        <span slot="footer" class="dialog-footer">
+                          <el-button @click="concelSurperTableFilter" size="small">取消</el-button>
+                          <el-button @click="postSurperTableFilter" size="small">设置</el-button>
+                        </span>
+                    </el-dialog>
+                    <!-- 超级表数据 -->
+                    <el-row class="surperTSearchRow">
+                      <el-col :span="3" class="dataPackerLabel">时间范围: </el-col>
+                      <el-col :span="13">
+                        <!-- <el-form  :model="surperTableFilter" label-width="80px"> -->
+                          <!-- <el-form-item label="时间范围" > -->
+                            <div class="datePickerWrapper">
+                              <el-date-picker
+                                @change="selectSurperData(false,true)"
+                                style="width: 100%;"
+                                size="small"
+                                v-model="surperTableFilter.surperDateRange"
+                                value-format="yyyy-MM-dd HH:mm:ss"
+                                type="datetimerange"
+                                range-separator="至"
+                                start-placeholder="开始日期"
+                                end-placeholder="结束日期"
+                                align="right">
+                              </el-date-picker>
+                            </div>
+                          <!-- </el-form-item> -->
+                        <!-- </el-form> -->
+
+                        <!-- <el-input v-model="surperTableFilter.surperTSearchText" class="input-with-select" size="small">
+                          <el-select v-model="surperTableFilter.surperTSearchColumn" slot="prepend" placeholder="请选择">
+                            <el-option v-for="(label, index) in this.surperTableLabelItems" :label="label" :value="label" :key="index"></el-option>
+                          </el-select>
+                          <el-button @click="searchSurperText" slot="append" icon="el-icon-search" size="small" class="surperTSearchBtn"></el-button>
+                        </el-input> -->
+                      </el-col>
+                      <el-col :span="4" class="freshDataBtn">
+                        <el-button @click="openSurperTableFilterD" size="small" style="width: 100%" icon="el-icon-setting">筛选条件</el-button>
+                      </el-col>
+                      <el-col :span="4" class="freshDataBtn">
+                        <el-button @click="selectSurperData(false, false)" size="small" style="width: 100%" icon="el-icon-refresh">数据刷新</el-button>
+                      </el-col>
+                    </el-row>
+
+                    <el-table
+                      size="mini"
+                      :data="surperTableData"
+                      border
+                      max-height="585"
+                      style="width: 100%">
+                      <el-table-column
+                        fixed
+                        v-if="surperTableLabel[0]"
+                        :prop="surperTableLabel[0]"
+                        :label="surperTableLabel[0]"
+                        width="250">
+                      </el-table-column>
+
+                      <el-table-column
+                        v-for="(data, index) in surperTableLabel.slice(1)"
+                        :key="index"
+                        :prop="data"
+                        :label="data"
+                        width="180">
+                      </el-table-column>
+                    </el-table>
+                    <!-- 超级表分页 -->
+                    <div class="paginationWrapper">
+                      <el-pagination
+                        :hide-on-single-page="true"
+                        :current-page.sync="currentPageSurperTable"
+                        @current-change	="paginationSurperChange"
+                        :page-size="eachPageSurperTable"
+                        layout="prev, pager, next"
+                        :total="totalSurperTable">
+                      </el-pagination>
+                    </div>
+                  </div>
+                </el-main>
+              </el-container>
+            </el-tab-pane>
+            <el-tab-pane label="表" class="tablePage" name="2">
+              <el-container class="tableWrapper">
+                <el-aside class="mainAside" width="200px">
+                  <div v-loading="loadingTableList">
+                    <!-- 表列表 -->
+                    <el-table
+                    size="mini"
+                    :data="tables"
+                    highlight-current-row
+                    @current-change="handleClickT"
+                    style="width: 100%">
+                      <el-table-column
+                        label="表名"
+                        width="180">
+                        <template slot="header" slot-scope="scope">
+                          <span>表名</span>
+                          <div class="iconWrapper">
+                            <div class="iconWrapper_ " @click="Tdialog=true">
+                              <img class="icon1" v-if="searchIcon" @mouseenter="searchIcon = false" src="./img/search_.png">
+                              <img class="icon1" v-else src="./img/search.png" @mouseleave="searchIcon = true">
+                            </div>
+                            <div class="iconWrapper_" @click="freshTList">
+                              <img class="icon1" v-if="freshIcon" @mouseenter="freshIcon = false" src="./img/fresh_.png">
+                              <img class="icon1" v-else src="./img/fresh.png" @mouseleave="freshIcon = true">
+                            </div>
+                          </div>
+                        </template>
+                        <template slot-scope="scope">
+                          <img class="icon1" src="./img/file.png">
+                          <span  class="surperTables">{{ scope.row.table_name }}</span>
+                          <div class="iconWrapper2">
+                            <!-- <img class="icon1" @click="editT" src="./img/edit.png"> -->
+                            <img class="icon1" @click.stop="deleteT(scope.row.table_name)" src="./img/delete.png">
+                          </div>
+                        </template>
+
+                      </el-table-column>
+                    </el-table>
+                    <el-dialog
+                      title="搜索表"
+                      :visible.sync="Tdialog"
+                      width="30%"
+                      :before-close="closeTdialog">
+                      <el-input
+                        v-model="TdialogText">
+                        <i slot="prefix" class="el-input__icon el-icon-search"></i>
+                      </el-input>
+                      <span slot="footer" class="dialog-footer">
+                        <el-button size="small" @click="closeTdialog">取 消</el-button>
+                        <el-button size="small" type="primary" @click="searchTList">确 定</el-button>
+                      </span>
+                    </el-dialog>
+                  </div>
+                </el-aside>
+                <el-main>
+                  <div v-loading="loadingTable">
+                    <el-dialog :close-on-click-modal="false" :before-close="concelTableFilter"	title="筛选条件" :visible.sync="tableFilterDialog">
+                      <el-form  :model="tableFilter" label-width="80px">
+                          <el-form-item label="数据项" >
+                            <el-checkbox-group
+                              v-model="tableFilter.fields">
+                              <el-row class="btnGroup">
+                                <el-button-group>
+                                  <el-button size="mini" @click="TChooseAll">全选</el-button>
+                                  <el-button size="mini" @click="TChooseReverse">反选</el-button>
+                                </el-button-group>
+                              </el-row>
+                              <el-row class="checkboxGroup">
+                                <el-col v-for="label in this.tableLabelItems" :key="label" :span="8">
+                                  <el-checkbox class="checkbox" :label="label">{{label}}</el-checkbox>
+                                </el-col>
+                              </el-row>
+                            </el-checkbox-group>
+                          </el-form-item>
+                          <el-form-item label="每页数目">
+
+                            <el-radio-group v-model="eachPageTable">
+                              <el-row class="checkboxGroup2">
+                                <el-radio :label="10">10</el-radio>
+                                <el-radio :label="15">15</el-radio>
+                                <el-radio :label="20">20</el-radio>
+                              </el-row>
+                            </el-radio-group>
+                          </el-form-item>
+                          <el-switch
+                          class="switchStyle"
+                          v-model="Torder"
+                          active-value="ASC"
+                          inactive-value="DESC"
+                          active-text="时间倒序"
+                          inactive-text="时间正序">
+                        </el-switch>
+                        </el-form>
+                        <span slot="footer" class="dialog-footer">
+                          <el-button @click="concelTableFilter" size="small">取消</el-button>
+                          <el-button @click="postTableFilter" size="small">设置</el-button>
+                        </span>
+                    </el-dialog>
+                    <!-- 表数据 -->
+                    <el-row class="surperTSearchRow">
+
+                      <el-col :span="3" class="dataPackerLabel">时间范围: </el-col>
+                      <el-col :span="13">
+                        <div class="datePickerWrapper">
+                          <el-date-picker
+                            @change="selectTData(false, true)"
+                            style="width: 100%;"
+                            size="small"
+                            v-model="tableFilter.dateRange"
+                            value-format="yyyy-MM-dd HH:mm:ss"
+                            type="datetimerange"
+                            range-separator="至"
+                            start-placeholder="开始日期"
+                            end-placeholder="结束日期"
+                            align="right">
+                          </el-date-picker>
+                        </div>
+                      </el-col>
+                      <!-- <el-col :span="15">
+                        <el-input v-model="tableFilter.tableSearchText" class="input-with-select" size="small">
+                          <el-select v-model="tableFilter.tableSearchColumn" slot="prepend" placeholder="请选择">
+                            <el-option v-for="(label, index) in this.tableLabelItems" :label="label" :value="label" :key="index"></el-option>
+                          </el-select>
+                          <el-button @click="searchTableText" slot="append" icon="el-icon-search" size="small" class="surperTSearchBtn"></el-button>
+                        </el-input>
+                      </el-col> -->
+                      <el-col :span="4" class="freshDataBtn">
+                        <el-button @click="openTableFilterD" size="small" style="width: 100%" icon="el-icon-setting">筛选条件</el-button>
+                      </el-col>
+                      <el-col :span="4" class="freshDataBtn">
+                        <el-button @click="selectTData(false, false)" size="small" style="width: 100%" icon="el-icon-refresh">数据刷新</el-button>
+                      </el-col>
+                    </el-row>
+                    <el-table
+                      size="mini"
+                      :data="tableData"
+                      border
+                      max-height="585"
+                      style="width: 100%;">
+                      <el-table-column
+                      fixed
+                      v-if="tableLabel[0]"
+                      :prop="tableLabel[0]"
+                      :label="tableLabel[0]"
+                      width="250">
+                    </el-table-column>
+                    <el-table-column
+                      v-for="(data, index) in tableLabel.slice(1)"
+                      :key="index"
+                      :prop="data"
+                      :label="data">
+                    </el-table-column>
+                    </el-table>
+                    <!-- 表分页 -->
+                    <div class="paginationWrapper">
+                      <el-pagination
+                          @current-change	="paginationChange"
+                          :hide-on-single-page="true"
+                          :current-page.sync="currentPageTable"
+                          :page-size="eachPageTable"
+                          layout="prev, pager, next"
+                          :total="totalTable">
+                      </el-pagination>
+                    </div>
+                  </div>
+                </el-main>
+              </el-container>
+            </el-tab-pane>
+            <el-tab-pane label="控制台" name="3">
+              <div class="consoleWrapper">
+                <el-input placeholder="请输入内容" v-model="consoleInput" @keyup.enter.native="sendSQL">
+                  <template slot="prepend">SQL:</template>
+                  <el-button slot="append" icon="el-icon-s-promotion" @click="sendSQL"></el-button>
+                </el-input>
+                <div class="resultPlace">
+                  <!-- <el-input :rows='1000' type="textarea" placeholder="运行结果" v-model="consoleResult" :disabled="true"></el-input> -->
+                    <div  style="height:100%;overflow-y:auto" class="resultPlaceTitle">
+                        <el-tabs v-model="sqlActiveName">
+                            <el-tab-pane label="JSON" name="1">
+                                <div  style="height:100%;overflow-y:auto; color: #444444" class="resultPlaceTitle">{{consoleResult}}</div>
+                            </el-tab-pane>
+                            <el-tab-pane label="TABLE" name="2">
+                                <el-table
+                                        size="mini"
+                                        :data="surperTableData"
+                                        border
+                                        max-height="585"
+                                        style="width: 100%">
+                                    <el-table-column
+                                            v-for="(data, index) in sqlDataType"
+                                            :key="index"
+                                            :prop="data"
+                                            :label="data"
+                                            width="180">
+                                    </el-table-column>
+                                </el-table>
+                            </el-tab-pane>
+                        </el-tabs>
+                    </div>
+                </div>
+              </div>
+            </el-tab-pane>
+            <el-tab-pane label="当前数据库属性" name="4">
+
+                <p v-html='dbInfo'></p>
+            </el-tab-pane>
+          </el-tabs>
+
+        </el-container>
+         <el-footer>
+
+           <el-button class="switchBtn" @click="drawer = true" type="text" size="small">
+             <img class="icon" src="./img/switch.png" />
+            切换</el-button>
+            <div class="footTextWrapper">
+
+            </div>
+            <div class="footText">当前连接:</div>
+            <div class="footText greyText">{{theLink.name}}</div>
+            <div class="footText">主机:</div>
+            <div class="footText greyText">{{theLink.host}}</div>
+            <div class="footText">端口:</div>
+            <div class="footText greyText">{{theLink.port}}</div>
+            <div class="footText">用户名:</div>
+            <div class="footText greyText">{{theLink.user}}</div>
+            <div class="footText">数据库:</div>
+            <div class="footText greyText">{{theDB}}</div>
+        </el-footer>
+      </el-container>
+
+    </div>
+    <script>
+        require('./index.js')
+    </script>
+  </body>
+</html>
