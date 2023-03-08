@@ -67,6 +67,8 @@ new Vue({
         dataType: [],
         loadingSurperList: false,
         loadingSurperTable: false,
+        //sql语句查询表数据
+        sqlTableData: [],
 
         tables: [], //表list
         tableData: [],
@@ -931,7 +933,7 @@ new Vue({
           });
         });
       },
-      sendSQL(){
+      async sendSQL(){
         let payload = {
           ip:this.theLink.host,
           port:this.theLink.port,
@@ -939,6 +941,34 @@ new Vue({
           password:this.theLink.password
         }
         // console.log(this.theDB)
+        //判断是否是count语句
+        let countSql = ''
+        if(this.consoleInput.toLowerCase().indexOf(' count(') == -1
+            && this.consoleInput.toLowerCase().indexOf(' limit ') == -1
+            && this.consoleInput.toLowerCase().indexOf(' group ') == -1) {
+          //先查询count语句，防止查询的数据较多导致软件崩溃
+          countSql = "select count(*) " + this.consoleInput.substring(this.consoleInput.toLowerCase().indexOf(' from '))
+        }
+        console.log('countSql:' + countSql)
+        if(countSql != '') {
+          //最大查询条数
+          let maxNum = 200
+          let isQuery = true
+          //查询总条数
+          await TaosRestful.rawSqlWithDB(countSql,this.theDB,payload).then(data => {
+            if(data.data && data.data[0] > maxNum){
+              isQuery = false
+            }
+          })
+          if(!isQuery){
+            this.$message({
+              message: '操作已取消，查询的数据太多',
+              type: 'warning',
+              duration:500
+            });
+            return
+          }
+        }
         TaosRestful.rawSqlWithDB(this.consoleInput,this.theDB,payload).then(data => {
           if(data.data){
             // let info = ''
@@ -952,7 +982,7 @@ new Vue({
             });
             this.consoleResult = data
             //数据
-            this.surperTableData = data.data
+            this.sqlTableData = data.data
             //字段
             this.sqlDataType = Object.keys(data.dataType)
           } else {
