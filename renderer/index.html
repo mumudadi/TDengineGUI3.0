@@ -596,10 +596,16 @@
             </el-tab-pane>
             <el-tab-pane label="控制台" name="3">
               <div class="consoleWrapper">
-                <el-input placeholder="请输入内容" v-model="consoleInput" @keyup.enter.native="sendSQL">
-                  <template slot="prepend">SQL:</template>
-                  <el-button slot="append" icon="el-icon-s-promotion" @click="sendSQL"></el-button>
-                </el-input>
+                  <el-tooltip class="item" effect="dark" :offset="completeOffset" placement="bottom-start" :manual="true" v-model="showAutoCompleteList.length > 0">
+                      <div slot="content" id="completeSelect" v-for="(item, index) in showAutoCompleteList">
+                          <span :id="'completeOption_' + index">{{item}}</span>
+                      </div>
+                      <el-input placeholder="请输入内容" id="consoleInput" v-model="consoleInput"
+                                @keyup.enter.native="inputEnter" @keydown.native="selectComplete($event)" v-on:input="autoCompleteOptionList()">
+                          <template slot="prepend">SQL:</template>
+                          <el-button slot="append" icon="el-icon-s-promotion" @click="sendSQL"></el-button>
+                      </el-input>
+                  </el-tooltip>
                 <div class="resultPlace">
                   <!-- <el-input :rows='1000' type="textarea" placeholder="运行结果" v-model="consoleResult" :disabled="true"></el-input> -->
                     <div  style="height:100%;overflow-y:auto" class="resultPlaceTitle">
@@ -662,3 +668,12 @@
     </script>
   </body>
 </html>
+
+<style>
+    .ac_select {
+        color: deepskyblue;
+    }
+    .el-tooltip__popper .popper__arrow {
+        display: none; !important;
+    }
+</style>
