@@ -146,7 +146,10 @@ new Vue({
             //选中自动补全选项
             autoCompleteOption: '',
             //自动补全选项框偏移量
-            completeOffset: 80
+            completeOffset: 80,
+            //表字段
+            tableField: [],
+            loading: false
         }
     },
     methods: {
@@ -556,15 +559,13 @@ new Vue({
                         duration: 1000
                     });
                     this.surperTables = data.data
-                    //新增自动补全数据
+                    //新增自动补全数据，添加超级表名
                     let autocomplete = this.autoCompleteList
-                    autocomplete.push(this.theDB)
+                    autocomplete.push('`' + this.theDB + '`')
                     this.surperTables.forEach(item => {
-                        autocomplete.push(item.stable_name)
+                        autocomplete.push('`' + item.stable_name + '`')
                     })
                     this.autoCompleteList = autocomplete
-                    console.log('自动补全数据')
-                    console.log(autocomplete)
                 } else {
                     this.$message({
                         message: data.msg,
@@ -949,7 +950,30 @@ new Vue({
                     });
                 });
         },
+        //查询表结构
+        async describeTable(tableName) {
+            let payload = {
+                ip: this.theLink.host,
+                port: this.theLink.port,
+                user: this.theLink.user,
+                password: this.theLink.password
+            }
+            let sql = 'describe ' + this.theDB + '.' + tableName
+            await TaosRestful.rawSqlWithDB(sql, this.theDB, payload).then(data => {
+                if (data.data) {
+                    let tableField = []
+                    data.data.forEach(item => {
+                        tableField.push('`' + item.field + '`')
+                    })
+                    this.tableField = tableField
+                }else {
+                    this.tableField = []
+                }
+            })
+        },
+        //发送sql语句
         async sendSQL() {
+            this.loading = true
             let payload = {
                 ip: this.theLink.host,
                 port: this.theLink.port,
@@ -982,6 +1006,7 @@ new Vue({
                         type: 'warning',
                         duration: 500
                     });
+                    this.loading = false
                     return
                 }
             }
@@ -1008,7 +1033,7 @@ new Vue({
                         duration: 1000
                     });
                 }
-
+                this.loading = false
             })
         },
         //输入框回车事件
@@ -1039,16 +1064,43 @@ new Vue({
                 if (index > -1) {
                     content = content.substring(index, content.length).trim()
                 }
+                //去除前缀
+                index = content.lastIndexOf('.')
+                if (index > -1) {
+                    content = content.substring(index + 1, content.length).trim()
+                }
                 if (content == '') {
                     return
                 }
                 let showAutoCompleteList = []
                 this.autoCompleteList.forEach(item => {
-                    if (item.toLowerCase().indexOf(content) > -1) {
+                    if (item.toLowerCase().indexOf(content) > -1 && showAutoCompleteList.length <= 10) {
                         showAutoCompleteList.push(item)
                     }
                 })
+                if(showAutoCompleteList.length < 10) {
+                    //判断查询语句是否包含超级表
+                    let superTable = ''
+                    for(let i in this.surperTables) {
+                        if(this.consoleInput.indexOf(this.surperTables[i].stable_name) > -1){
+                            superTable = this.surperTables[i].stable_name
+                            break
+                        }
+                    }
+                    if(superTable != '') {
+                        //查询表字段
+                        this.describeTable(superTable)
+                    }
+                    if(this.tableField.length > 0) {
+                        this.tableField.forEach(item => {
+                            if (item.toLowerCase().indexOf(content) > -1 && showAutoCompleteList.length <= 10) {
+                                showAutoCompleteList.push(item)
+                            }
+                        })
+                    }
+                }
                 this.showAutoCompleteList = showAutoCompleteList
+                //选择框偏移量
                 this.completeOffset = 70 + parseInt(start * 6)
             }, 500)
         },
@@ -1074,7 +1126,6 @@ new Vue({
             let index = 0
             let nextIndex = 0
             //获取当前选项，如果没有选中，则默认选中第一个
-            console.log(this.autoCompleteOption)
             if (this.autoCompleteOption == null || this.autoCompleteOption == '') {
                 this.autoCompleteOption = this.showAutoCompleteList[0]
             } else {
@@ -1093,8 +1144,6 @@ new Vue({
                     nextIndex = this.showAutoCompleteList.length - 1
                 }
             }
-            console.log("index" + index)
-            console.log("nextIndex" + nextIndex)
             this.autoCompleteOption = this.showAutoCompleteList[nextIndex]
             //清除之前选项的样式
             document.getElementById('completeOption_' + index).classList.remove('ac_select')
@@ -1107,20 +1156,34 @@ new Vue({
             //获取光标位置
             const dom = document.getElementById('consoleInput')
             let start = dom.selectionStart
+            //获取当前光标所在位置之前的数据
             let content = this.consoleInput.substring(0, start)
+            //获取最后一个空格位置
             let index = content.lastIndexOf(' ')
+            //保存当前光标位置
             let selectionStart = start
+            //获取从最后一个空格到最后一个.的位置
+            let prefixIndex = content.lastIndexOf('.')
+            //获取前缀，例子：select * from db.table, 得到的数据就是db.
+            let prefix = ''
+            if (prefixIndex > -1) {
+                prefix = content.substring(index, prefixIndex + 1).trim()
+                //如果前缀有空格则表示没有前缀
+                if(prefix.indexOf(' ') > -1) {
+                    prefix = ''
+                }
+            }
+            //替换补全数据
             if (index > -1) {
-                content = content.substring(0, index).trim() + ' ' + this.autoCompleteOption
+                //例子：原语句select * from db.table，拼接'select * from ' + 前缀(db.) + 补全数据
+                content = content.substring(0, index).trim() + ' ' + prefix + this.autoCompleteOption
             } else {
-                content = this.autoCompleteOption
+                content = prefix + this.autoCompleteOption
             }
             selectionStart = content.length
             if (start < this.consoleInput.length) {
                 content = content + ' ' + this.consoleInput.substring(start).trim()
             }
-            console.log('光标位置')
-            console.log(selectionStart)
             this.consoleInput = content
             this.autoCompleteOption = ''
             this.showAutoCompleteList = []
@@ -1129,6 +1192,11 @@ new Vue({
                 dom.setSelectionRange(selectionStart, selectionStart)
             }, 100)
 
+        },
+        //关闭自动补全
+        closeAutoComplete() {
+          // this.showAutoCompleteList = []
+          this.autoCompleteOption = ''
         },
         //自动补全列表初始化
         initAutoCompleteList() {
@@ -1152,7 +1220,8 @@ new Vue({
                 'alter',
                 'group',
                 'order',
-                'truncate'
+                'truncate',
+                'describe'
             ]
         },
         closeSuperTdialog() {

@@ -597,10 +597,10 @@
             <el-tab-pane label="控制台" name="3">
               <div class="consoleWrapper">
                   <el-tooltip class="item" effect="dark" :offset="completeOffset" placement="bottom-start" :manual="true" v-model="showAutoCompleteList.length > 0">
-                      <div slot="content" id="completeSelect" v-for="(item, index) in showAutoCompleteList">
-                          <span :id="'completeOption_' + index">{{item}}</span>
+                      <div slot="content" id="completeSelect" style="max-height: 300px;">
+                          <p :id="'completeOption_' + index" v-for="(item, index) in showAutoCompleteList">{{item}}</p>
                       </div>
-                      <el-input placeholder="请输入内容" id="consoleInput" v-model="consoleInput"
+                      <el-input placeholder="请输入内容" id="consoleInput" v-model="consoleInput" @blur="closeAutoComplete"
                                 @keyup.enter.native="inputEnter" @keydown.native="selectComplete($event)" v-on:input="autoCompleteOptionList()">
                           <template slot="prepend">SQL:</template>
                           <el-button slot="append" icon="el-icon-s-promotion" @click="sendSQL"></el-button>
@@ -619,6 +619,7 @@
                                         :data="sqlTableData"
                                         border
                                         max-height="585"
+                                        v-loading="loading"
                                         style="width: 100%">
                                     <el-table-column
                                             v-for="(data, index) in sqlDataType"
@@ -675,5 +676,13 @@
     }
     .el-tooltip__popper .popper__arrow {
         display: none; !important;
+    }
+    .el-tooltip__popper.is-dark {
+        background-color: #ffffff;
+        color: #444444;
+        border: 1px solid #999999;
+        border-radius: 10px;
+        min-width: 100px;
+        font-size: 14px;
     }
 </style>
