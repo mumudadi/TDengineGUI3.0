@@ -17,9 +17,9 @@ module.exports = {
             //let resData = res.data.data.map(item => Object.fromEntries(head.map((a,b)=>[a,item[b]])))
             let resData = res.data.data.map(item => Object.fromEntries(head.map((a,b)=> {
                 let value = item[b];
-                if(dataType[a]=='TIMESTAMP') {
+               /* if(dataType[a]=='TIMESTAMP') {
                     value = new Date(Date.parse(value)+8*60*60*1000).toISOString();
-                }
+                }*/
                 return [a,value]
             })))
             return  {'res':true,'count':res.data.rows,'data':resData,'dataType':dataType}
