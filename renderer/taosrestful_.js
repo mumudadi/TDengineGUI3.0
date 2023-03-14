@@ -4,7 +4,7 @@ module.exports = {
    async sendRequest(sqlStr, payload){
     // console.log(sqlStr)
     try {
-        let res = await axios.post(`http://${payload.ip}:${payload.port}/rest/sql`, sqlStr, {
+        let res = await axios.post(`http://${payload.ip}:${payload.port}/rest/sql?tz=Asia/Shanghai`, sqlStr, {
             auth: {
             username: payload.user,
             password: payload.password
@@ -17,9 +17,6 @@ module.exports = {
             //let resData = res.data.data.map(item => Object.fromEntries(head.map((a,b)=>[a,item[b]])))
             let resData = res.data.data.map(item => Object.fromEntries(head.map((a,b)=> {
                 let value = item[b];
-                if(dataType[a]=='TIMESTAMP') {
-                    value = new Date(Date.parse(value)+8*60*60*1000).toISOString();
-                }
                 return [a,value]
             })))
             return  {'res':true,'count':res.data.rows,'data':resData,'dataType':dataType}
